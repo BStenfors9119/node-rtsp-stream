@@ -1,4 +1,6 @@
-var Mpeg1Muxer, STREAM_MAGIC_BYTES, VideoStream, events, util, ws
+var Mpeg1Muxer, STREAM_MAGIC_BYTES, VideoStream, events, util, net, ws
+
+net = require('net')
 
 ws = require('ws')
 
@@ -17,6 +19,7 @@ VideoStream = function(options) {
   this.width = options.width
   this.height = options.height
   this.wsPort = options.wsPort
+  this.unixWsPort = options.unixWsPort
   this.inputStreamStarted = false
   this.stream = undefined
   this.startMpeg1Stream()
@@ -95,11 +98,15 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     return this.onSocketConnect(socket, request)
   })
   this.wsServer.broadcast = function(data, opts) {
+    console.log('broadcasting...');
     var results
     results = []
     for (let client of this.clients) {
       if (client.readyState === 1) {
-        results.push(client.send(data, opts))
+        console.log('data: ', data);
+        const message = {frame: data, ts: Date.now()};
+        console.log(message);
+        results.push(client.send(JSON.stringify(message), opts))
       } else {
         results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
       }
@@ -129,6 +136,10 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
   return socket.on("close", (code, message) => {
     return console.log(`${this.name}: Disconnected WebSocket (` + this.wsServer.clients.size + " total)")
   })
+}
+
+VideoStream.prototype.onUnixSocketConnect = function(socket) {
+
 }
 
 module.exports = VideoStream
