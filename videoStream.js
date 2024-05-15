@@ -151,7 +151,8 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
         }
       }
 
-      const finalClient = {id: connectingClientInfo.id, delay: delay, timeLapse: connectingClientInfo.timeLapse, client: client};
+      const finalClient = {id: connectingClientInfo.id, delay: delay,
+        timeLapse: connectingClientInfo.timeLapse, client: socket};
       this.clientDelays.add(finalClient);
 
       socket.send(JSON.stringify({'event': 'delay_calc', delay: delay}))
