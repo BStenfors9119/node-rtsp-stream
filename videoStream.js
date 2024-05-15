@@ -137,7 +137,6 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
     const connectingClientInfo = JSON.parse(data.toString());
     const currentLapse = connectingClientInfo.timeLapse;
     let delay = 0;
-    console.log('times: ', connectingClientInfo.timeLapse, this.clientDelays.size);
     if (connectingClientInfo.event === 'ack') {
       if (this.clientDelays.size >= 1) {
         for (const client of this.clientDelays) {
@@ -146,7 +145,6 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
           if (existingClientTimeLapse > connectingClientTimeLapse) {
             // console.log('connecting client is faster: ', client.timeLapse, connectingClientInfo.timeLapse);
             delay = parseFloat(existingClientTimeLapse) - parseFloat(connectingClientTimeLapse);
-            console.log('delaying....', delay);
           }
         }
       }
