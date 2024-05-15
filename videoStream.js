@@ -98,7 +98,6 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     return this.onSocketConnect(socket, request)
   })
   this.wsServer.broadcast = function(data, opts) {
-    console.log('broadcasting...');
     var results
     results = []
     for (let client of this.clients) {
