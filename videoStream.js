@@ -102,9 +102,9 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     results = []
     for (let client of this.clients) {
       if (client.readyState === 1) {
-        console.log('data: ', data);
+        // console.log('data: ', data);
         const message = {frame: data, ts: Date.now()};
-        console.log(message);
+        // console.log(message);
         results.push(client.send(JSON.stringify(message), opts))
       } else {
         results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
