@@ -1,4 +1,5 @@
-var Mpeg1Muxer, STREAM_MAGIC_BYTES, VideoStream, events, util, net, ws
+var Mpeg1Muxer, STREAM_MAGIC_BYTES, NETWORK_LATENCY,
+    VideoStream, events, util, net, ws
 
 net = require('net')
 
@@ -11,6 +12,8 @@ events = require('events')
 Mpeg1Muxer = require('./mpeg1muxer')
 
 STREAM_MAGIC_BYTES = "jsmp" // Must be 4 bytes
+
+NETWORK_LATENCY = 100;
 
 VideoStream = function(options) {
   this.options = options
@@ -104,7 +107,7 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     for (let client of this.clients) {
       if (client.readyState === 1) {
         // console.log('data: ', data);
-        const message = {frame: data, ts: Date.now()};
+        const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
         // console.log(message);
         results.push(client.send(JSON.stringify(message), opts))
       } else {
