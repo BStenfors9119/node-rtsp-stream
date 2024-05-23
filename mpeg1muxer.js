@@ -21,6 +21,7 @@ Mpeg1Muxer = function(options) {
     }
   }
   this.spawnOptions = [
+    "-y",
     "-i",
     this.url,
     '-f',
