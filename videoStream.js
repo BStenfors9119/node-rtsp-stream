@@ -136,38 +136,34 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
 
   socket.remoteAddress = request.connection.remoteAddress
 
-  socket.on('message', data => {
-    const connectingClientInfo = JSON.parse(data.toString());
-    const currentLapse = connectingClientInfo.timeLapse;
-    let delay = 0;
-    if (connectingClientInfo.event === 'ack') {
-      if (this.clientDelays.size >= 1) {
-        for (const client of this.clientDelays) {
-          const existingClientTimeLapse = client.timeLapse;
-          const connectingClientTimeLapse = connectingClientInfo.timeLapse;
-          if (existingClientTimeLapse > connectingClientTimeLapse) {
-            // console.log('connecting client is faster: ', client.timeLapse, connectingClientInfo.timeLapse);
-            delay = parseFloat(existingClientTimeLapse) - parseFloat(connectingClientTimeLapse);
-          }
-        }
-      }
-
-      const finalClient = {id: connectingClientInfo.id, delay: delay,
-        timeLapse: connectingClientInfo.timeLapse, client: socket};
-      this.clientDelays.add(finalClient);
-
-      socket.send(JSON.stringify({'event': 'delay_calc', delay: delay}))
-      // console.log('client info: ', finalClient);
-    }
-  })
+  // socket.on('message', data => {
+  //   const connectingClientInfo = JSON.parse(data.toString());
+  //   const currentLapse = connectingClientInfo.timeLapse;
+  //   let delay = 0;
+  //   if (connectingClientInfo.event === 'ack') {
+  //     if (this.clientDelays.size >= 1) {
+  //       for (const client of this.clientDelays) {
+  //         const existingClientTimeLapse = client.timeLapse;
+  //         const connectingClientTimeLapse = connectingClientInfo.timeLapse;
+  //         if (existingClientTimeLapse > connectingClientTimeLapse) {
+  //           // console.log('connecting client is faster: ', client.timeLapse, connectingClientInfo.timeLapse);
+  //           delay = parseFloat(existingClientTimeLapse) - parseFloat(connectingClientTimeLapse);
+  //         }
+  //       }
+  //     }
+  //
+  //     const finalClient = {id: connectingClientInfo.id, delay: delay,
+  //       timeLapse: connectingClientInfo.timeLapse, client: socket};
+  //     this.clientDelays.add(finalClient);
+  //
+  //     socket.send(JSON.stringify({'event': 'delay_calc', delayed: delay}))
+  //     // console.log('client info: ', finalClient);
+  //   }
+  // })
 
   return socket.on("close", (code, message) => {
     return console.log(`${this.name}: Disconnected WebSocket (` + this.wsServer.clients.size + " total)")
   })
-}
-
-VideoStream.prototype.onUnixSocketConnect = function(socket) {
-
 }
 
 module.exports = VideoStream
