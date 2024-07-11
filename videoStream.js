@@ -25,7 +25,7 @@ VideoStream = function(options) {
   this.unixWsPort = options.unixWsPort
   this.inputStreamStarted = false
   this.stream = undefined
-  this.clients = new Set()
+  this.tsrReceivers = undefined
   this.startMpeg1Stream()
   this.pipeStreamToSocketServer()
   return this
@@ -104,9 +104,13 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
   this.wsServer.broadcast = function(data, opts) {
     var results
     results = []
-    const longestClientDelay = this.clients.reduce((max, obj) => {
-      return obj.delay > max ? obj.delay : max;
-    }, 0);
+    let longestClientDelay = 0;
+    if (this.tsrReceivers !== undefined){
+      longestClientDelay = this.tsrReceivers.reduce((max, obj) => {
+        return obj.delay > max ? obj.delay : max;
+      }, 0);
+    }
+
     for (let client of this.clients) {
       if (client.readyState === 1) {
         const delay = longestClientDelay > client.delay ? longestClientDelay - client.delay : 0;
