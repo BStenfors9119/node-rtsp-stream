@@ -25,7 +25,7 @@ VideoStream = function(options) {
   this.unixWsPort = options.unixWsPort
   this.inputStreamStarted = false
   this.stream = undefined
-  this.clientDelays = new Set()
+  this.clients = new Set()
   this.startMpeg1Stream()
   this.pipeStreamToSocketServer()
   return this
@@ -104,12 +104,18 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
   this.wsServer.broadcast = function(data, opts) {
     var results
     results = []
+    const longestClientDelay = this.clients.reduce((max, obj) => {
+      return obj.delay > max ? obj.delay : max;
+    }, 0);
     for (let client of this.clients) {
       if (client.readyState === 1) {
+        const delay = longestClientDelay > client.delay ? longestClientDelay - client.delay : 0;
         // console.log('data: ', data);
-        const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+        setTimeout(() => {
+          const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+          results.push(client.send(JSON.stringify(message), opts))
+        }, delay);
         // console.log(message);
-        results.push(client.send(JSON.stringify(message), opts))
       } else {
         results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
       }
