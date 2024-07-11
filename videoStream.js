@@ -113,12 +113,17 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
 
     for (let client of this.clients) {
       if (client.readyState === 1) {
-        const delay = longestClientDelay > client.delay ? longestClientDelay - client.delay : 0;
-        // console.log('data: ', data);
-        setTimeout(() => {
-          const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
-          results.push(client.send(JSON.stringify(message), opts))
-        }, delay);
+        if (longestClientDelay !== 0) {
+          const delay = longestClientDelay > client.delay ? longestClientDelay - client.delay : 0;
+          // console.log('data: ', data);
+          setTimeout(() => {
+            const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+            results.push(client.send(JSON.stringify(message), opts))
+          }, delay);
+        } else {
+            const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+            results.push(client.send(JSON.stringify(message), opts))
+        }
         // console.log(message);
       } else {
         results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
