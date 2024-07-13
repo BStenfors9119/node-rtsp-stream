@@ -25,7 +25,7 @@ VideoStream = function(options) {
   this.unixWsPort = options.unixWsPort
   this.inputStreamStarted = false
   this.stream = undefined
-  this.tsrReceivers = undefined
+  this.tsrReceivers = []
   this.startMpeg1Stream()
   this.pipeStreamToSocketServer()
   return this
@@ -91,31 +91,40 @@ VideoStream.prototype.startMpeg1Stream = function() {
   this.mpeg1Muxer.on('exitWithError', () => {
     return this.emit('exitWithError')
   })
+  console.log('mpeg1Muxer started...');
   return this
 }
 
 VideoStream.prototype.pipeStreamToSocketServer = function() {
+  let vs = this;
   this.wsServer = new ws.Server({
     port: this.wsPort
   })
   this.wsServer.on("connection", (socket, request) => {
+    console.log('wsServer connection');
     return this.onSocketConnect(socket, request)
   })
   this.wsServer.broadcast = function(data, opts) {
     var results
     results = []
     let longestClientDelay = 0;
-    if (this.tsrReceivers !== undefined){
-      longestClientDelay = this.tsrReceivers.reduce((max, obj) => {
+    if (vs.tsrReceivers.length > 0){
+      longestClientDelay = vs.tsrReceivers.reduce((max, obj) => {
         return obj.delay > max ? obj.delay : max;
       }, 0);
     }
 
     for (let client of this.clients) {
+      // console.log('looping clients...');
       if (client.readyState === 1) {
+        // console.log('longestClientDelay: ', longestClientDelay);
         if (longestClientDelay !== 0) {
-          const delay = longestClientDelay > client.delay ? longestClientDelay - client.delay : 0;
-          // console.log('data: ', data);
+          const currentClient = vs.tsrReceivers.find(tsrRec => tsrRec.name === `${vs.name}-${client.remoteAddress}`);
+          // console.log('currentClientDelay: ', currentClient, client.remoteAddress);
+          const currentClientDelay = currentClient?.delay || 0;
+          const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
+          // console.log('broadcast delay: ', currentClientDelay, longestClientDelay, delay);
+          // console.log('broadcast delay', delay);
           setTimeout(() => {
             const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
             results.push(client.send(JSON.stringify(message), opts))
@@ -138,6 +147,7 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
 
 VideoStream.prototype.onSocketConnect = function(socket, request) {
   var streamHeader
+  let vs = this;
   // Send magic bytes and video size to the newly connected socket
   // struct { char magic[4]; unsigned short width, height;}
   streamHeader = new Buffer(8)
@@ -149,6 +159,7 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
   })
   console.log(`${this.name}: New WebSocket Connection (` + this.wsServer.clients.size + " total)")
 
+  // console.log('ws socket: ', request.connection);
   socket.remoteAddress = request.connection.remoteAddress
 
   // socket.on('message', data => {
@@ -175,6 +186,40 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
   //     // console.log('client info: ', finalClient);
   //   }
   // })
+
+  socket.on('message', data => {
+    const connectingClientInfo = JSON.parse(data.toString());
+    const currentLapse = connectingClientInfo.timeLapse;
+    let delay = 0;
+    // console.log('times: ', connectingClientInfo.timeLapse, clients.size);
+    if (connectingClientInfo.event === 'ack') {
+      const startTime = process.hrtime();
+      const elapsedSeconds = startTime[0]; // seconds
+      const elapsedNanoseconds = startTime[1]; // nanoseconds
+      const startTimeInMilliseconds = elapsedSeconds * 1000 + elapsedNanoseconds / 1e6;
+
+      delay = startTimeInMilliseconds - connectingClientInfo.clientStartTime;
+
+      const finalClient = {
+        id: connectingClientInfo.id,
+        name: `${vs.name}-${socket.remoteAddress}`,
+        delay: delay,
+        clientStartTime: connectingClientInfo.clientStartTime,
+        serverTime: startTimeInMilliseconds,
+        client: socket
+      };
+
+      console.log(`final client ${finalClient.name}`, finalClient.delay, startTimeInMilliseconds, connectingClientInfo.clientStartTime);
+
+      vs.tsrReceivers.push(finalClient);
+
+      socket.send(JSON.stringify({
+        'event': 'delay_calc',
+        clientStart: finalClient.clientStartTime,
+        serverTs: finalClient.serverTime
+      }))
+    }
+  })
 
   return socket.on("close", (code, message) => {
     return console.log(`${this.name}: Disconnected WebSocket (` + this.wsServer.clients.size + " total)")
