@@ -17,6 +17,7 @@
     "mocha": "^5.2.0"
   },
   "dependencies": {
+    "ntp-time-sync": "^0.4.1",
     "ws": "^7.4.6"
   }
 }

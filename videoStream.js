@@ -1,15 +1,8 @@
-var Mpeg1Muxer, STREAM_MAGIC_BYTES, NETWORK_LATENCY,
-    VideoStream, events, util, net, ws
-
-net = require('net')
-
-ws = require('ws')
-
-util = require('util')
-
-events = require('events')
-
-Mpeg1Muxer = require('./mpeg1muxer')
+const   ws = require('ws'),
+        util = require('util'),
+        events = require('events'),
+        Mpeg1Muxer = require('./mpeg1muxer'),
+        { NtpTimeSync } = require('ntp-time-sync');
 
 STREAM_MAGIC_BYTES = "jsmp" // Must be 4 bytes
 
@@ -105,38 +98,42 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     return this.onSocketConnect(socket, request)
   })
   this.wsServer.broadcast = function(data, opts) {
+
     var results
     results = []
-    let longestClientDelay = 0;
-    if (vs.tsrReceivers.length > 0){
-      longestClientDelay = vs.tsrReceivers.reduce((max, obj) => {
-        return obj.delay > max ? obj.delay : max;
-      }, 0);
-    }
 
     for (let client of this.clients) {
+      vs.calculateDelay(client)
+          .then((clientTimeInfo) => {
+            if (client.readyState === 1) {
+              let longestClientDelay = 0;
+              if (vs.tsrReceivers.length > 0){
+                longestClientDelay = vs.tsrReceivers.reduce((max, obj) => {
+                  return obj.delay > max ? obj.delay : max;
+                }, 0);
+              }
+              if (longestClientDelay !== 0) {
+                const currentClient = vs.tsrReceivers.find(tsrRec => tsrRec.name === `${vs.name}-${client.remoteAddress}`);
+                // console.log('currentClientDelay: ', currentClient, client.remoteAddress);
+                const currentClientDelay = clientTimeInfo?.delay || 0;
+                const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
+                // console.log('broadcast delay: ', currentClientDelay, longestClientDelay, delay);
+                // console.log('broadcast delay', delay);
+                setTimeout(() => {
+                  const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+                  results.push(client.send(JSON.stringify(message), opts))
+                }, delay);
+              } else {
+                const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+                results.push(client.send(JSON.stringify(message), opts))
+              }
+              // console.log(message);
+            } else {
+              results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
+            }
+          });
       // console.log('looping clients...');
-      if (client.readyState === 1) {
-        // console.log('longestClientDelay: ', longestClientDelay);
-        if (longestClientDelay !== 0) {
-          const currentClient = vs.tsrReceivers.find(tsrRec => tsrRec.name === `${vs.name}-${client.remoteAddress}`);
-          // console.log('currentClientDelay: ', currentClient, client.remoteAddress);
-          const currentClientDelay = currentClient?.delay || 0;
-          const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
-          // console.log('broadcast delay: ', currentClientDelay, longestClientDelay, delay);
-          // console.log('broadcast delay', delay);
-          setTimeout(() => {
-            const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
-            results.push(client.send(JSON.stringify(message), opts))
-          }, delay);
-        } else {
-            const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
-            results.push(client.send(JSON.stringify(message), opts))
-        }
-        // console.log(message);
-      } else {
-        results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
-      }
+
     }
     return results
   }
@@ -150,7 +147,7 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
   let vs = this;
   // Send magic bytes and video size to the newly connected socket
   // struct { char magic[4]; unsigned short width, height;}
-  streamHeader = new Buffer(8)
+  streamHeader = new Buffer.alloc(8)
   streamHeader.write(STREAM_MAGIC_BYTES)
   streamHeader.writeUInt16BE(this.width, 4)
   streamHeader.writeUInt16BE(this.height, 6)
@@ -209,7 +206,7 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
         client: socket
       };
 
-      console.log(`final client ${finalClient.name}`, finalClient.delay, startTimeInMilliseconds, connectingClientInfo.clientStartTime);
+      // console.log(`final client ${finalClient.name}`, finalClient.delay, startTimeInMilliseconds, connectingClientInfo.clientStartTime);
 
       vs.tsrReceivers.push(finalClient);
 
@@ -226,4 +223,42 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
   })
 }
 
+VideoStream.prototype.calculateDelay = function(client) {
+  return new Promise((resolve, reject) => {
+    const ntpServerAddress = client.remoteAddress.replace("::ffff:", "");
+    const timeSync = NtpTimeSync.getInstance();
+    timeSync.getNetworkTime(ntpServerAddress, 123)
+        .then((resp) => {
+          const rpiTime = resp;
+          // const offsetSign = rpiTime.transmitTimestamp.getTime() > rpiTime.destinationTimestamp.getTime() ? 1 : -1;
+          // const offset =
+          //     ((Math.abs(rpiTime.receiveTimestamp.getTime() - rpiTime.originTimestamp.getTime()) +
+          //             Math.abs(rpiTime.transmitTimestamp.getTime() - rpiTime.destinationTimestamp.getTime())) /
+          //         2) *
+          //     offsetSign;
+
+          const delay = Math.max(
+              rpiTime.destinationTimestamp.getTime() -
+              rpiTime.originTimestamp.getTime() -
+              (rpiTime.receiveTimestamp.getTime() - rpiTime.transmitTimestamp.getTime()),
+              Math.pow(2, timeSync.options.ntpDefaults.precision)
+          );
+
+          // const dispersion =
+          //     Math.pow(2, rpiTime.precision) +
+          //     Math.pow(2, timeSync.options.ntpDefaults.precision) +
+          //     timeSync.options.ntpDefaults.tolerance * (rpiTime.destinationTimestamp.getTime() - rpiTime.originTimestamp.getTime());
+
+          const clientTimeInfo = {
+            delay: delay
+          };
+          console.log('cti', clientTimeInfo);
+          resolve(clientTimeInfo);
+        })
+        .catch((err) => {
+          // console.log(`time sync err for ${ntpServerAddress}`, err);
+        });
+  });
+
+}
 module.exports = VideoStream
