@@ -98,13 +98,11 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     return this.onSocketConnect(socket, request)
   })
   this.wsServer.broadcast = function(data, opts) {
-
-    var results
-    results = []
+    const results = []
 
     for (let client of this.clients) {
-      vs.calculateDelay(client)
-          .then((clientTimeInfo) => {
+      // vs.calculateDelay(client)
+      //     .then((clientTimeInfo) => {
             if (client.readyState === 1) {
               let longestClientDelay = 0;
               if (vs.tsrReceivers.length > 0){
@@ -115,14 +113,14 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
               if (longestClientDelay !== 0) {
                 const currentClient = vs.tsrReceivers.find(tsrRec => tsrRec.name === `${vs.name}-${client.remoteAddress}`);
                 // console.log('currentClientDelay: ', currentClient, client.remoteAddress);
-                const currentClientDelay = clientTimeInfo?.delay || 0;
-                const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
+                // const currentClientDelay = clientTimeInfo?.delay || 0;
+                // const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
                 // console.log('broadcast delay: ', currentClientDelay, longestClientDelay, delay);
                 // console.log('broadcast delay', delay);
                 setTimeout(() => {
                   const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
                   results.push(client.send(JSON.stringify(message), opts))
-                }, delay);
+                }, 0);
               } else {
                 const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
                 results.push(client.send(JSON.stringify(message), opts))
@@ -131,10 +129,11 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
             } else {
               results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
             }
-          });
+          // });
       // console.log('looping clients...');
 
     }
+
     return results
   }
   return this.on('camdata', (data) => {
@@ -256,6 +255,7 @@ VideoStream.prototype.calculateDelay = function(client) {
           resolve(clientTimeInfo);
         })
         .catch((err) => {
+          resolve({delay: 0})
           // console.log(`time sync err for ${ntpServerAddress}`, err);
         });
   });
