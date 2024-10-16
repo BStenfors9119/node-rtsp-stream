@@ -104,27 +104,27 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
       // vs.calculateDelay(client)
       //     .then((clientTimeInfo) => {
             if (client.readyState === 1) {
-              let longestClientDelay = 0;
-              if (vs.tsrReceivers.length > 0){
-                longestClientDelay = vs.tsrReceivers.reduce((max, obj) => {
-                  return obj.delay > max ? obj.delay : max;
-                }, 0);
-              }
-              if (longestClientDelay !== 0) {
-                const currentClient = vs.tsrReceivers.find(tsrRec => tsrRec.name === `${vs.name}-${client.remoteAddress}`);
-                // console.log('currentClientDelay: ', currentClient, client.remoteAddress);
-                // const currentClientDelay = clientTimeInfo?.delay || 0;
-                // const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
-                // console.log('broadcast delay: ', currentClientDelay, longestClientDelay, delay);
-                // console.log('broadcast delay', delay);
-                setTimeout(() => {
-                  const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
-                  results.push(client.send(JSON.stringify(message), opts))
-                }, 0);
-              } else {
+      //         let longestClientDelay = 0;
+      //         if (vs.tsrReceivers.length > 0){
+      //           longestClientDelay = vs.tsrReceivers.reduce((max, obj) => {
+      //             return obj.delay > max ? obj.delay : max;
+      //           }, 0);
+      //         }
+      //         if (longestClientDelay !== 0) {
+      //           const currentClient = vs.tsrReceivers.find(tsrRec => tsrRec.name === `${vs.name}-${client.remoteAddress}`);
+      //           // console.log('currentClientDelay: ', currentClient, client.remoteAddress);
+      //           // const currentClientDelay = clientTimeInfo?.delay || 0;
+      //           // const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
+      //           // console.log('broadcast delay: ', currentClientDelay, longestClientDelay, delay);
+      //           // console.log('broadcast delay', delay);
+      //           setTimeout(() => {
+      //             const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+      //             results.push(client.send(JSON.stringify(message), opts))
+      //           }, 0);
+      //         } else {
                 const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
                 results.push(client.send(JSON.stringify(message), opts))
-              }
+              // }
               // console.log(message);
             } else {
               results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
