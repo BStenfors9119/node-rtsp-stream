@@ -18,7 +18,7 @@ VideoStream = function(options) {
   this.unixWsPort = options.unixWsPort
   this.inputStreamStarted = false
   this.stream = undefined
-  this.tsrReceivers = []
+  this.clients = new Set()
   this.startMpeg1Stream()
   this.pipeStreamToSocketServer()
   return this
@@ -89,7 +89,6 @@ VideoStream.prototype.startMpeg1Stream = function() {
 }
 
 VideoStream.prototype.pipeStreamToSocketServer = function() {
-  let vs = this;
   this.wsServer = new ws.Server({
     port: this.wsPort
   })
@@ -98,40 +97,48 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     return this.onSocketConnect(socket, request)
   })
   this.wsServer.broadcast = function(data, opts) {
-
     var results
     results = []
-
     for (let client of this.clients) {
-      vs.calculateDelay(client)
-          .then((clientTimeInfo) => {
-            if (client.readyState === 1) {
-              let longestClientDelay = 0;
-              if (vs.tsrReceivers.length > 0){
-                longestClientDelay = vs.tsrReceivers.reduce((max, obj) => {
-                  return obj.delay > max ? obj.delay : max;
-                }, 0);
-              }
-              if (longestClientDelay !== 0) {
-                const currentClient = vs.tsrReceivers.find(tsrRec => tsrRec.name === `${vs.name}-${client.remoteAddress}`);
-                // console.log('currentClientDelay: ', currentClient, client.remoteAddress);
-                const currentClientDelay = clientTimeInfo?.delay || 0;
-                const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
-                // console.log('broadcast delay: ', currentClientDelay, longestClientDelay, delay);
-                // console.log('broadcast delay', delay);
-                setTimeout(() => {
-                  const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
-                  results.push(client.send(JSON.stringify(message), opts))
-                }, delay);
-              } else {
-                const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
-                results.push(client.send(JSON.stringify(message), opts))
-              }
-              // console.log(message);
-            } else {
-              results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
-            }
-          });
+      // console.log('sending data....');
+      if (client.readyState === 1) {
+        // console.log('data: ', data);
+        const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+        // console.log(message);
+        results.push(client.send(JSON.stringify(message), opts))
+      } else {
+        results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
+      }
+      // vs.calculateDelay(client)
+      //     .then((clientTimeInfo) => {
+      //       if (client.readyState === 1) {
+      //         let longestClientDelay = 0;
+      //         if (vs.tsrReceivers.length > 0){
+      //           longestClientDelay = vs.tsrReceivers.reduce((max, obj) => {
+      //             return obj.delay > max ? obj.delay : max;
+      //           }, 0);
+      //         }
+      //         // if (longestClientDelay !== 0) {
+      //         //   const currentClient = vs.tsrReceivers.find(tsrRec => tsrRec.name === `${vs.name}-${client.remoteAddress}`);
+      //         //   // console.log('currentClientDelay: ', currentClient, client.remoteAddress);
+      //         //   const currentClientDelay = clientTimeInfo?.delay || 0;
+      //         //   const delay = longestClientDelay > currentClientDelay ? longestClientDelay - currentClientDelay : 0;
+      //         //   // console.log('broadcast delay: ', currentClientDelay, longestClientDelay, delay);
+      //         //   // console.log('broadcast delay', delay);
+      //         //   setTimeout(() => {
+      //         //     const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+      //         //     results.push(client.send(JSON.stringify(message), opts))
+      //         //   }, delay);
+      //         // } else {
+      //         console.log('sending data....');
+      //           const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
+      //           results.push(client.send(JSON.stringify(message), opts))
+      //         // }
+      //         // console.log(message);
+      //       } else {
+      //         results.push(console.log("Error: Client from remoteAddress " + client.remoteAddress + " not connected."))
+      //       }
+      //     });
       // console.log('looping clients...');
 
     }
@@ -144,10 +151,9 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
 
 VideoStream.prototype.onSocketConnect = function(socket, request) {
   var streamHeader
-  let vs = this;
   // Send magic bytes and video size to the newly connected socket
   // struct { char magic[4]; unsigned short width, height;}
-  streamHeader = new Buffer.alloc(8)
+  streamHeader = new Buffer(8)
   streamHeader.write(STREAM_MAGIC_BYTES)
   streamHeader.writeUInt16BE(this.width, 4)
   streamHeader.writeUInt16BE(this.height, 6)
@@ -199,7 +205,7 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
 
       const finalClient = {
         id: connectingClientInfo.id,
-        name: `${vs.name}-${socket.remoteAddress}`,
+        name: `$tsr-beam-${socket.remoteAddress}`,
         delay: delay,
         clientStartTime: connectingClientInfo.clientStartTime,
         serverTime: startTimeInMilliseconds,
@@ -208,7 +214,7 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
 
       // console.log(`final client ${finalClient.name}`, finalClient.delay, startTimeInMilliseconds, connectingClientInfo.clientStartTime);
 
-      vs.tsrReceivers.push(finalClient);
+      //vs.tsrReceivers.push(finalClient);
 
       socket.send(JSON.stringify({
         'event': 'delay_calc',
