@@ -108,7 +108,7 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     results = []
     for (let client of this.clients) {
       if (client.readyState === 1) {
-        console.log('data: ', data);
+        // console.log('data: ', data);
         const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
         // console.log(message);
         results.push(client.send(JSON.stringify(message), opts))
