@@ -96,13 +96,14 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
     console.log('wsServer connection');
     return this.onSocketConnect(socket, request)
   })
-  this.wsServer.broadcast = function(data, opts) {
+  this.wsServer.broadcast =  async function(data, opts) {
     var results
     results = []
     for (let client of this.clients) {
       // console.log('sending data....');
       if (client.readyState === 1) {
         // console.log('data: ', data);
+        await this.calculateDelay(client);
         const message = {frame: data, ts: Date.now() + NETWORK_LATENCY};
         // console.log(message);
         results.push(client.send(JSON.stringify(message), opts))
@@ -153,7 +154,8 @@ VideoStream.prototype.onSocketConnect = function(socket, request) {
   var streamHeader
   // Send magic bytes and video size to the newly connected socket
   // struct { char magic[4]; unsigned short width, height;}
-  streamHeader = new Buffer(8)
+  console.log('socket connected');
+  streamHeader = new Buffer.alloc(8)
   streamHeader.write(STREAM_MAGIC_BYTES)
   streamHeader.writeUInt16BE(this.width, 4)
   streamHeader.writeUInt16BE(this.height, 6)
