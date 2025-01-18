@@ -132,7 +132,7 @@ VideoStream.prototype.pipeStreamToSocketServer = function() {
         });
     }
     for (let client of this.clients) {
-      // console.log('sending data....');
+      console.log('sending data....');
       if (client.readyState === 1) {
         // console.log('data: ', data);
         // console.log('about to calculate delay...');
